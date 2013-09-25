@@ -20,7 +20,7 @@
 
 """ Command-line application for getting the ligand neighbourhood of an aptamer
 Usage:
-  $ python ligandneighbours.python
+  $ python ligandneighbours.py
 
 """
 
@@ -31,10 +31,18 @@ from Bio.PDB import *
 #parser for command-line arguments 
 parser = argparse.ArgumentParser(
 	description=__doc__,
-	formatter_class=argparse.RawDescriptionHelpFormatter,
-	parents=[tools.argparser])
-
+	formatter_class=argparse.RawDescriptionHelpFormatter)
+parser.add_argument('-id','--pdb_id', help='the PDB id of the structure you wish to find a ligand neighbourhood for', required=True)
 
 def main(argv):
+	print 'hello'
 	#parse the command-line flags.
-	flags = parser.parse_arges(argv[1:])
+	flags = parser.parse_args(argv[1:])
+	pdb_id = flags.pdb_id
+	print pdb_id
+
+
+
+#start it
+if __name__ == '__main__':
+  main(sys.argv)
