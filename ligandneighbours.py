@@ -32,16 +32,28 @@ from Bio.PDB import *
 parser = argparse.ArgumentParser(
 	description=__doc__,
 	formatter_class=argparse.RawDescriptionHelpFormatter)
-parser.add_argument('-id','--pdb_id', help='the PDB id of the structure you wish to find a ligand neighbourhood for', required=True)
+parser.add_argument('-dir','--input_dir', help='a local direcory containing PDB structures for which you wish to find the ligand neighbourhood', required=True)
 
 def main(argv):
-	print 'hello'
 	#parse the command-line flags.
 	flags = parser.parse_args(argv[1:])
-	pdb_id = flags.pdb_id
-	print pdb_id
+	local_dir = flags.input_dir
+	#fetch a list of all the pdb files in the input directory
+	filepaths = fetchPdbFilePaths(local_dir)
 
 
+
+def fetchPdbFilePaths(alocaldir):
+	rm = []
+	for fn in os.listdir(alocaldir):
+		fileName, fileExtension = os.path.splitext(alocaldir+'/'+fn)
+		if fileExtension == '.pdb':
+			rm.append(fileName+fileExtension)
+	if len(rm) == 0:
+		raise Exception("No pdb files found in provided folder!")
+		sys.exit()
+
+	return rm
 
 #start it
 if __name__ == '__main__':
