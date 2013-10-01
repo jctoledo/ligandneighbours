@@ -30,13 +30,14 @@ import argparse
 import urllib2
 import csv
 import re
+
 from Bio.PDB import *
 from collections import defaultdict
 #parser for command-line arguments 
 parser = argparse.ArgumentParser(
 	description=__doc__,
 	formatter_class=argparse.RawDescriptionHelpFormatter)
-parser.add_argument('-dir','--input_dir', help='a local direcory containing PDB structures for which you wish to find the ligand neighbourhood', required=True)
+parser.add_argument('-dir','--input_dir', help='a local direcory containing PDB structures (in the .pdb format) for which you wish to find the ligand neighbourhood', required=True)
 parser.add_argument('-out', '--output_file', help='the file where the output will be stored as CSV', required=True)
 parser.add_argument('--radius', nargs='?', const=5.0, type=float, default=5.0)
 pdb_to_ligand_list_url = 'https://docs.google.com/spreadsheet/pub?key=0AnGgKfZdJasrdC00bUxHcVRXaFloSnJYb3VmYkwyVnc&single=true&gid=0&output=csv'
@@ -51,91 +52,141 @@ def main(argv):
 	filepaths = fetchPdbFilePaths(local_dir)
 	#fetch the ligand list 
 	ligands = fetchLigandList(pdb_to_ligand_list_url)
-	# dict of ligands (PDB.Residue) to residues (PDB.Residue) 
-	ln = findNeighbours(filepaths, ligands, radius)
-
-#def findNeighbours(aPdbFilePath, someVerifiedLigands, aRadius):
-
-#rewrite to work on one file at a time
-def findNeighbours(someFilePaths, someLigands, aRadius):
-	#key: ligand residue position value list of residues within the distance
-	ligand_hood = defaultdict(list)
-	#a map where the key is a pdb id and the value is a list of ligands in that pdb
-	pdb_to_ligand_list = defaultdict(list)
-	#iterate over the pdb file paths
-	for ap in someFilePaths:
-		fn, fe = os.path.splitext(ap)
-		anId = fn.rsplit('/')[-1]
-		match = re.match('^\w{4}$', anId)
-		if match:
-			p = PDBParser(PERMISSIVE=1, QUIET=1)
-			structure = p.get_structure(anId, ap)
-			models = structure.get_list()
-			#iterate over the models
-			for aModel in models:
-				chains = aModel.get_list()
-				#get all the atoms in this model
-				model_atoms = Selection.unfold_entities(aModel, 'A')
-				#create a neighbor search
-				ns = NeighborSearch(model_atoms)
-				#search the chains for any ligands
-				for aChain in chains:
-					residues = aChain.get_list()
-					for aR in residues:
-						if findLigandIdInListOfLigands(someLigands, aR.get_resname()) != None:
-							ligand = aR
-							#add it to the pdb_to_ligand_list
-							if ligand in pdb_to_ligand_list:
-								pdb_to_ligand_list[anId].append(ligand)
-							else:
-								pdb_to_ligand_list[anId] = [ligand]
-							#get the atoms of this residue
-							atom_list = Selection.unfold_entities(ligand, 'A')
-							#pick a center
-							#TODO:fixme
-							center = atom_list[0].get_coord()
-							neighbor_atoms = ns.search(center, aRadius)
-							if neighbor_atoms:
-								nr = Selection.unfold_entities(neighbor_atoms,'R')
-								if ligand in ligand_hood:
-									ligand_hood[ligand].extend(nr)
-								else:
-									ligand_hood[ligand] = nr
+	for fp in filepaths:
+		# dict of ligands (PDB.Residue) to residues (PDB.Residue) 
+		ln = findNeighbours(fp, ligands, radius)
 
 
 
-							 
-							# for aResidue in residue_list:
-							# 	#create rdf statements
-							# 	fi= aResidue.get_full_id()
-							# 	res_pdbid = fi[0]
-							# 	res_model_num = fi[1]
-							# 	res_chain = fi[2]
-							# 	res_position = fi[3][1]
-							# 	res_uri = base_uri+'/pdb_resource:'+res_pdbid+'/chemicalComponent_'+res_chain+str(res_position)
-							# 	if res_position in ligand_hood:
-							# 		ligand_hood[res_position].append(res_uri)
-							# 	else:
-							# 		ligand_hood[res_position] = [res_uri]
-		else :
-			raise Exception ("Not a valid PDBID found!")
-	# lines = ""
-	# for pdbid, ligandName in pdb_to_ligand_list.iteritems():
-	# 	print pdbid
-	# 	print ligandName
-	# for pdbid,someResidues in ligand_hood.iteritems():
-	# 	#print '-'.join(someResidues)
-	# 	print someResidues
+# compute the ligand neighbourhood for the given pdb file. 
+# someVerifiedLigands is the contents of the spreadsheet with known ligands
+# aRadius is the threshold underwhich the comparison will be made
+# this method returns a defaultdict(list) where the key is a ligand
+# and the value is a list of PDB.Residue that exist within aRadius of the given
+# ligand
+def findNeighbours(aPdbFilePath, someVerifiedLigands, aRadius):
+	rm = defaultdict(list)
+	fn, fe = os.path.splitext(aPdbFilePath)
+	pdbId = fn.rsplit('/')[-1]
+	match = re.match('^\w{4}$', pdbId)
+	if match:
+		p = PDBParser(PERMISSIVE=1, QUET=1)
+		structure = p.get_structure(pdbId, aPdbFilePath)
+		models = structure.get_list()
+		#iterate over the models
+		for aModel in models:
+			chains = aModel.get_list()
+			#get all the atoms ('A') in this model
+			model_atoms = Selection.unfold_entities(aModel,'A')
+			#create a neighbor search
+			ns = NeighborSearch(model_atoms)
+			#search the chains for any known ligands
+			for aChain in chains:
+				#get the residues in this chainln
+				residues = aChain.get_list()
+				#iterate over the residues
+				for aR in residues:
+					if findLigandIdInListOfLigands(someLigands,aR.get_resname()) != None:
+						#found a ligand!
+						ligand = aR
+						#get the atoms ('A') of this residue
+						ligand_atom_list = Selection.unfold_entities(ligand, 'A')
 
-	output = ''
-	for pdbid, ligandName in pdb_to_ligand_list.iteritems():
-		if pdbid in ligand_hood:
-			#get the neighbours
-			neighbours = ligand_hood[pdbid]
-			#now prepare the line for output
-			n_uris = ','.join(neighbours)
-			#output += pdbid+'\t'+ligandName+'\t'
-	print output
+
+
+# def findNeighbours(someFilePaths, someLigands, aRadius):
+# 	#key: ligand residue position value list of residues within the distance
+# 	ligand_hood = defaultdict(list)
+# 	#a map where the key is a pdb id and the value is a list of ligands in that pdb
+# 	pdb_to_ligand_list = defaultdict(list)
+# 	#iterate over the pdb file paths
+# 	for ap in someFilePaths:
+# 		fn, fe = os.path.splitext(ap)
+# 		anId = fn.rsplit('/')[-1]
+# 		match = re.match('^\w{4}$', anId)
+# 		if match:
+# 			p = PDBParser(PERMISSIVE=1, QUIET=1)
+# 			structure = p.get_structure(anId, ap)
+# 			models = structure.get_list()
+# 			#iterate over the models
+# 			for aModel in models:
+# 				chains = aModel.get_list()
+# 				#get all the atoms in this model
+# 				model_atoms = Selection.unfold_entities(aModel, 'A')
+# 				#create a neighbor search
+# 				ns = NeighborSearch(model_atoms)
+# 				#search the chains for any ligands
+# 				for aChain in chains:
+# 					residues = aChain.get_list()
+# 					for aR in residues:
+# 						if findLigandIdInListOfLigands(someLigands, aR.get_resname()) != None:
+# 							ligand = aR
+# 							#add it to the pdb_to_ligand_list
+# 							if ligand in pdb_to_ligand_list:
+# 								pdb_to_ligand_list[anId].append(ligand)
+# 							else:
+# 								pdb_to_ligand_list[anId] = [ligand]
+# 							#get the atoms of this residue
+# 							atom_list = Selection.unfold_entities(ligand, 'A')
+# 							#pick a center
+# 							#TODO:fixme
+# 							center = atom_list[0].get_coord()
+# 							neighbor_atoms = ns.search(center, aRadius)
+# 							if neighbor_atoms:
+# 								nr = Selection.unfold_entities(neighbor_atoms,'R')
+# 								if ligand in ligand_hood:
+# 									ligand_hood[ligand].extend(nr)
+# 								else:
+# 									ligand_hood[ligand] = nr
+ 
+# 							# for aResidue in residue_list:
+# 							# 	#create rdf statements
+# 							# 	fi= aResidue.get_full_id()
+# 							# 	res_pdbid = fi[0]
+# 							# 	res_model_num = fi[1]
+# 							# 	res_chain = fi[2]
+# 							# 	res_position = fi[3][1]
+# 							# 	res_uri = base_uri+'/pdb_resource:'+res_pdbid+'/chemicalComponent_'+res_chain+str(res_position)
+# 							# 	if res_position in ligand_hood:
+# 							# 		ligand_hood[res_position].append(res_uri)
+# 							# 	else:
+# 							# 		ligand_hood[res_position] = [res_uri]
+# 		else :
+# 			raise Exception ("Not a valid PDBID found!")
+# 	# lines = ""
+# 	# for pdbid, ligandName in pdb_to_ligand_list.iteritems():
+# 	# 	print pdbid
+# 	# 	print ligandName
+# 	# for pdbid,someResidues in ligand_hood.iteritems():
+# 	# 	#print '-'.join(someResidues)
+# 	# 	print someResidues
+
+# 	output = ''
+# 	for pdbid, ligandName in pdb_to_ligand_list.iteritems():
+# 		if pdbid in ligand_hood:
+# 			#get the neighbours
+# 			neighbours = ligand_hood[pdbid]
+# 			#now prepare the line for output
+# 			n_uris = ','.join(neighbours)
+# 			#output += pdbid+'\t'+ligandName+'\t'
+# 	print output
+
+
+def computeNeighbors(aNeighborSearch, aLigand_list_of_atoms, aRadius):
+	rm = set()
+	#iterate over the list of atoms
+	for anAtom in aLigand_list_of_atoms:
+		#set a center
+		center = anAtom.get_coord()
+		neighbor_atoms = aNeighborSearch.search(center, aRadius)
+		if neighbor_atoms:
+			#get the residues that those atoms correspond to
+			nr = Selection.unfold_entities(neighbor_atoms, 'R')
+			#now add these residues to the rm set
+			for ar in nr:
+				rm.add(ar)
+	return rm
+
 def fetchLigandList(aUrl):
 	rm = []
 	r = urllib2.urlopen(pdb_to_ligand_list_url)
@@ -162,7 +213,7 @@ def findLigandIdInListOfLigands(aListOfLigands, aLigId):
 			return anid
 	return None
 
-
+#retrieve a list of files with .pdb as extension from the given local directory (alocaldir)
 def fetchPdbFilePaths(alocaldir):
 	rm = []
 	for fn in os.listdir(alocaldir):
@@ -172,9 +223,8 @@ def fetchPdbFilePaths(alocaldir):
 	if len(rm) == 0:
 		raise Exception("No pdb files found in provided folder!")
 		sys.exit()
-
 	return rm
 
-#start it
+#start the program
 if __name__ == '__main__':
   main(sys.argv)
