@@ -33,6 +33,7 @@ import re
 
 from Bio.PDB import *
 from collections import defaultdict
+
 #parser for command-line arguments 
 parser = argparse.ArgumentParser(
 	description=__doc__,
@@ -42,6 +43,7 @@ parser.add_argument('-out', '--output_file', help='the file where the output wil
 parser.add_argument('--radius', nargs='?', const=5.0, type=float, default=5.0)
 pdb_to_ligand_list_url = 'https://docs.google.com/spreadsheet/pub?key=0AnGgKfZdJasrdC00bUxHcVRXaFloSnJYb3VmYkwyVnc&single=true&gid=0&output=csv'
 base_uri = 'http://bio2rdf.org'
+
 def main(argv):
 	#parse the command-line flags.
 	flags = parser.parse_args(argv[1:])
@@ -55,6 +57,27 @@ def main(argv):
 	for fp in filepaths:
 		# dict of ligands (PDB.Residue) to residues (PDB.Residue) 
 		ln = findNeighbours(fp, ligands, radius)
+		#now we can generate a list of uris for each ligand neighbor
+		luri = makeURIHood(ln)
+		print ln
+		print "**********"
+		print luri
+		sys.exit()
+
+def makeURIHood(aLigandDictList):
+	rm = defaultdict(list)
+	for (ligand, hood) in aLigandDictList.items():
+		residue_uris = []
+		for aResidue in hood:
+			fi = aResidue.get_full_id()
+			res_pdbid = fi[0]
+			res_chain = fi[2]
+			res_position = fi[3][1]
+			res_uri = base_uri+'/pdb_resource:'+res_pdbid+'/chemicalComponent_'+res_chain+str(res_position)
+			residue_uris.append(res_uri)
+		if not ligand in rm:
+			rm[ligand] = residue_uris
+	return rm	
 
 # compute the ligand neighbourhood for the given pdb file. 
 # someVerifiedLigands is the contents of the spreadsheet with known ligands
@@ -88,9 +111,8 @@ def findNeighbours(aPdbFilePath, someVerifiedLigands, aRadius):
 						#found a ligand!
 						ligand = aR
 						neighborset = computeNeighborSet(ns, ligand, aRadius)
-						print ligand.get_resname()
-						print neighborset
 						rm[ligand] = neighborset
+	return rm
 
 #given a BioPython.NeighborSearch object a ligand residue and a radius
 # this method iterates over all the atoms in a ligand and finds the 
@@ -117,8 +139,10 @@ def computeNeighborSet(aNeighborSearch, aLigand, aRadius):
 					rm.add(ar)
 	return rm
 
+#downloads the latest version of the google doc
 def fetchLigandList(aUrl):
 	rm = []
+	print "fetching latest ligand list ..."
 	r = urllib2.urlopen(pdb_to_ligand_list_url)
 	reader = csv.reader(r)
 	rownum = 0;
