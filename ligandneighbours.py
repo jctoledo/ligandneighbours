@@ -39,7 +39,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument('-dir','--input_dir', help='a local direcory containing PDB structures for which you wish to find the ligand neighbourhood', required=True)
 parser.add_argument('-out', '--output_file', help='the file where the output will be stored as CSV', required=True)
 parser.add_argument('--radius', nargs='?', const=5.0, type=float, default=5.0)
-ligand_map_url = 'https://docs.google.com/spreadsheet/pub?key=0AnGgKfZdJasrdC00bUxHcVRXaFloSnJYb3VmYkwyVnc&single=true&gid=0&output=csv'
+pdb_to_ligand_list_url = 'https://docs.google.com/spreadsheet/pub?key=0AnGgKfZdJasrdC00bUxHcVRXaFloSnJYb3VmYkwyVnc&single=true&gid=0&output=csv'
 base_uri = 'http://bio2rdf.org'
 def main(argv):
 	#parse the command-line flags.
@@ -49,12 +49,19 @@ def main(argv):
 	radius = flags.radius
 	#fetch a list of all the pdb files in the input directory
 	filepaths = fetchPdbFilePaths(local_dir)
-	#fetch the ligand list
-	ligands = fetchLigandList(ligand_map_url)
-	findNeighbours(filepaths, ligands, radius)
+	#fetch the ligand list 
+	ligands = fetchLigandList(pdb_to_ligand_list_url)
+	# dict of ligands (PDB.Residue) to residues (PDB.Residue) 
+	ln = findNeighbours(filepaths, ligands, radius)
 
+#def findNeighbours(aPdbFilePath, someVerifiedLigands, aRadius):
+
+#rewrite to work on one file at a time
 def findNeighbours(someFilePaths, someLigands, aRadius):
-	d = defaultdict(list)
+	#key: ligand residue position value list of residues within the distance
+	ligand_hood = defaultdict(list)
+	#a map where the key is a pdb id and the value is a list of ligands in that pdb
+	pdb_to_ligand_list = defaultdict(list)
 	#iterate over the pdb file paths
 	for ap in someFilePaths:
 		fn, fe = os.path.splitext(ap)
@@ -76,32 +83,62 @@ def findNeighbours(someFilePaths, someLigands, aRadius):
 					residues = aChain.get_list()
 					for aR in residues:
 						if findLigandIdInListOfLigands(someLigands, aR.get_resname()) != None:
+							ligand = aR
+							#add it to the pdb_to_ligand_list
+							if ligand in pdb_to_ligand_list:
+								pdb_to_ligand_list[anId].append(ligand)
+							else:
+								pdb_to_ligand_list[anId] = [ligand]
 							#get the atoms of this residue
-							atom_list = Selection.unfold_entities(aR, 'A')
+							atom_list = Selection.unfold_entities(ligand, 'A')
 							#pick a center
+							#TODO:fixme
 							center = atom_list[0].get_coord()
-							neighbors = ns.search(center, aRadius)
-							residue_list = Selection.unfold_entities(neighbors,'R')
-							for aResidue in residue_list:
-								#create rdf statements
-								fi= aResidue.get_full_id()
-								res_pdbid = fi[0]
-								res_model_num = fi[1]
-								res_chain = fi[2]
-								res_position = fi[3][1]
-								res_uri = base_uri+'/pdb_resource:'+res_pdbid+'/chemicalComponent_'+res_chain+str(res_position)
-								if res_pdbid in d:
-									d[res_pdbid].append(res_uri)
+							neighbor_atoms = ns.search(center, aRadius)
+							if neighbor_atoms:
+								nr = Selection.unfold_entities(neighbor_atoms,'R')
+								if ligand in ligand_hood:
+									ligand_hood[ligand].extend(nr)
 								else:
-									d[res_pdbid] = [res_uri]			
+									ligand_hood[ligand] = nr
+
+
+
+							 
+							# for aResidue in residue_list:
+							# 	#create rdf statements
+							# 	fi= aResidue.get_full_id()
+							# 	res_pdbid = fi[0]
+							# 	res_model_num = fi[1]
+							# 	res_chain = fi[2]
+							# 	res_position = fi[3][1]
+							# 	res_uri = base_uri+'/pdb_resource:'+res_pdbid+'/chemicalComponent_'+res_chain+str(res_position)
+							# 	if res_position in ligand_hood:
+							# 		ligand_hood[res_position].append(res_uri)
+							# 	else:
+							# 		ligand_hood[res_position] = [res_uri]
 		else :
 			raise Exception ("Not a valid PDBID found!")
+	# lines = ""
+	# for pdbid, ligandName in pdb_to_ligand_list.iteritems():
+	# 	print pdbid
+	# 	print ligandName
+	# for pdbid,someResidues in ligand_hood.iteritems():
+	# 	#print '-'.join(someResidues)
+	# 	print someResidues
 
-	print d
-
+	output = ''
+	for pdbid, ligandName in pdb_to_ligand_list.iteritems():
+		if pdbid in ligand_hood:
+			#get the neighbours
+			neighbours = ligand_hood[pdbid]
+			#now prepare the line for output
+			n_uris = ','.join(neighbours)
+			#output += pdbid+'\t'+ligandName+'\t'
+	print output
 def fetchLigandList(aUrl):
 	rm = []
-	r = urllib2.urlopen(ligand_map_url)
+	r = urllib2.urlopen(pdb_to_ligand_list_url)
 	reader = csv.reader(r)
 	rownum = 0;
 	for row in reader:
