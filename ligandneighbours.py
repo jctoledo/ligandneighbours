@@ -30,6 +30,8 @@ import argparse
 import urllib2
 import csv
 import re
+import hashlib
+import random
 
 from Bio.PDB import *
 from collections import defaultdict
@@ -43,6 +45,8 @@ parser.add_argument('-out', '--output_file', help='the file where the output wil
 parser.add_argument('--radius', nargs='?', const=5.0, type=float, default=5.0)
 pdb_to_ligand_list_url = 'https://docs.google.com/spreadsheet/pub?key=0AnGgKfZdJasrdC00bUxHcVRXaFloSnJYb3VmYkwyVnc&single=true&gid=0&output=csv'
 base_uri = 'http://bio2rdf.org'
+rdfs = 'http://www.w3.org/2000/01/rdf-schema#'
+rdf = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#'
 
 def main(argv):
 	#parse the command-line flags.
@@ -55,18 +59,60 @@ def main(argv):
 	#fetch the ligand list 
 	ligands = fetchLigandList(pdb_to_ligand_list_url)
 	for fp in filepaths:
+		#get the file name and extension of the pdb file
+		fn, fe = os.path.splitext(fp)
+		pdbId = fn.rsplit('/')[-1]
 		# dict of ligands (PDB.Residue) to residues (PDB.Residue) 
 		ln = findNeighbours(fp, ligands, radius)
 		#now we can generate a list of uris for each ligand neighbor
 		luri = makeURIHood(ln)
-		print ln
-		print "**********"
-		print luri
-		sys.exit()
+		hoodNTriples = makeHoodNTriplesAnnotation(luri, pdbId, radius)
+		#write an N3 file as output
+		writeN3Hood(hoodNTriples, pdbId, output_dir)
 
+#Creates a ligand neighborhood
+def makeHoodNTriplesAnnotation(ligand_uri_dict, aPdbId, aRadius):
+	rm = ''
+	#make a hood uri
+	hood_uri = base_uri+'/lighood_resource:'+hashlib.sha224(str(aPdbId)+str(aRadius)+str(random.random())).hexdigest()
+	#type the hood
+	rm += "<"+hood_uri+"> <"+rdf+"type> <"+base_uri+"/lighood_vocabulary:ligand_neighbourhood> .\n"
+	#add the radius 
+	radius_uri = base_uri+'/lighood_resource:'+hashlib.sha224(str(aRadius)+str(random.random())).hexdigest()
+	rm += "<"+hood_uri+"> <"+base_uri+"/lighood_vocabulary:has_attribute> <"+radius_uri+">. \n"
+	rm += "<"+radius_uri+"> <"+rdf+"type> <"+base_uri+"/lighood_vocabulary:radius> .\n"
+	rm += "<"+radius_uri+"> <"+base_uri+"/lighood_vocabulary:has_value> \""+str(aRadius)+"\". \n"
+	for (ligand_uri, res_uri) in ligand_uri_dict.items():
+		#add ligand 
+		rm += "<"+hood_uri+"> <"+base_uri+"/lighood_vocabulary:has_member> <"+ligand_uri+"> .\n"
+		#type the ligand
+		rm += "<"+ligand_uri+"> <"+rdf+"type> <"+base_uri+"/lighood_vocabulary:ligand> .\n"
+		for aru in res_uri:
+			#add parts
+			rm += "<"+hood_uri+"> <"+base_uri+"/lighood_vocabulary:has_member> <"+aru+"> .\n"
+			#link ligand to neighbors
+			rm += "<"+ligand_uri+"> <"+base_uri+"/lighood_vocabulary:has_neighbor> <"+aru+"> .\n"
+			#type the neighbors
+			rm += "<"+aru+"> <"+rdf+"type> <"+base_uri+"/lighood_vocabulary:neighbor> .\n"
+	return rm
+
+#creates an N3 file with aPdbId in the specified anOutputDirectory
+# by parsing the ligand_uri_dict
+def writeN3Hood(someNTriples, aPdbId, anOutputDirectory):
+	if someNTriples:
+		f = open(anOutputDirectory+'/'+aPdbId+'ligand-neighborhood.nt','w')
+		f.write(someNTriples)
+		f.close()
+
+#returns a defaultdict(list) where the key is the Bio2RDF URI of 
+# the ligand residue in this structure and the value is a list of 
+# residue URIs that are in the radius of the given ligand
 def makeURIHood(aLigandDictList):
 	rm = defaultdict(list)
 	for (ligand, hood) in aLigandDictList.items():
+		ligfi = ligand.get_full_id()
+		#build ligand uri
+		ligand_uri = base_uri+'/pdb_resource:'+ligfi[0]+'/chemicalComponent_'+ligfi[2]+str(ligfi[3][1])
 		residue_uris = []
 		for aResidue in hood:
 			fi = aResidue.get_full_id()
@@ -76,7 +122,7 @@ def makeURIHood(aLigandDictList):
 			res_uri = base_uri+'/pdb_resource:'+res_pdbid+'/chemicalComponent_'+res_chain+str(res_position)
 			residue_uris.append(res_uri)
 		if not ligand in rm:
-			rm[ligand] = residue_uris
+			rm[ligand_uri] = residue_uris
 	return rm	
 
 # compute the ligand neighbourhood for the given pdb file. 
