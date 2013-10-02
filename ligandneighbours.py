@@ -107,7 +107,7 @@ def makeHoodNTriplesAnnotation(ligand_uri_dict, aPdbId, aRadius):
 # by parsing the ligand_uri_dict
 def writeN3Hood(someNTriples, aPdbId, anOutputDirectory):
 	if someNTriples:
-		f = open(anOutputDirectory+'/'+aPdbId+'ligand-neighborhood.nt','w')
+		f = open(anOutputDirectory+'/'+aPdbId+'-ligand-neighborhood.nt','w')
 		f.write(someNTriples)
 		f.close()
 
