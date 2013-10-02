@@ -18,7 +18,12 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-""" Command-line application for getting the ligand neighbourhood of an aptamer
+""" 
+Command-line application for creating NTriples representation of a ligand neighbourhood of a pdb file.
+This program takes as input a directory of pdb files and searches those structures for  any residues found in a known dictionary of ligands:
+(https://docs.google.com/spreadsheet/pub?key=0AnGgKfZdJasrdC00bUxHcVRXaFloSnJYb3VmYkwyVnc&single=true&gid=0&output=csv). If a ligand is found
+in a structure an NTriples file is generated that includes details about the neighbourhood members and 
+
 Usage:
   $ python ligandneighbours.py
 
@@ -77,6 +82,8 @@ def makeHoodNTriplesAnnotation(ligand_uri_dict, aPdbId, aRadius):
 	hood_uri = base_uri+'/lighood_resource:'+hashlib.sha224(str(aPdbId)+str(aRadius)+str(random.random())).hexdigest()
 	#type the hood
 	rm += "<"+hood_uri+"> <"+rdf+"type> <"+base_uri+"/lighood_vocabulary:ligand_neighbourhood> .\n"
+	#link it to the pdb structure
+	rm += "<"+base_uri+"/pdb:"+aPdbId+"> <"+base_uri+"/lighood_vocabulary:has_neighborhood> <"+hood_uri+"> .\n"
 	#add the radius 
 	radius_uri = base_uri+'/lighood_resource:'+hashlib.sha224(str(aRadius)+str(random.random())).hexdigest()
 	rm += "<"+hood_uri+"> <"+base_uri+"/lighood_vocabulary:has_attribute> <"+radius_uri+">. \n"
