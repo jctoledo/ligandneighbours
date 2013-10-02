@@ -25,7 +25,7 @@ This program takes as input a directory of pdb files and searches those structur
 in a structure an NTriples file is generated that includes details about the neighbourhood members and 
 
 Usage:
-  $ python ligandneighbours.py
+  $ python ligandneighbours.py -dir /path/to/loca/dir/with/pdb/files --radius 4.8 --out /path/to/output 
 
 """
 
