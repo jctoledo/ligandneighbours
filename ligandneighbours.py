@@ -82,7 +82,7 @@ def makeHoodNTriplesAnnotation(ligand_uri_dict, aPdbId, aRadius):
 	hood_uri = base_uri+'/lighood_resource:'+hashlib.sha224(str(aPdbId)+str(aRadius)+str(random.random())).hexdigest()
 	#type the hood
 	rm += "<"+hood_uri+"> <"+rdf+"type> <"+base_uri+"/lighood_vocabulary:ligand_neighbourhood> .\n"
-	rm += "<"+base_uri+"/lighood_vocabulary:ligand_neighbourhood> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2000/01/rdf-schema#Class>  ."
+	rm += "<"+base_uri+"/lighood_vocabulary:ligand_neighbourhood> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2000/01/rdf-schema#Class>  .\n"
 	#link it to the pdb structure
 	rm += "<"+base_uri+"/pdb:"+aPdbId+"> <"+base_uri+"/lighood_vocabulary:has_neighborhood> <"+hood_uri+"> .\n"
 	#add the radius 
