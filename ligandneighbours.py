@@ -69,11 +69,12 @@ def main(argv):
 		pdbId = fn.rsplit('/')[-1]
 		# dict of ligands (PDB.Residue) to residues (PDB.Residue) 
 		ln = findNeighbours(fp, ligands, radius)
-		#now we can generate a list of uris for each ligand neighbor
-		luri = makeURIHood(ln)
-		hoodNTriples = makeHoodNTriplesAnnotation(luri, pdbId, radius)
-		#write an N3 file as output
-		writeN3Hood(hoodNTriples, pdbId, output_dir)
+		if ln:
+			#now we can generate a list of uris for each ligand neighbor
+			luri = makeURIHood(ln)
+			hoodNTriples = makeHoodNTriplesAnnotation(luri, pdbId, radius)
+			#write an N3 file as output
+			writeN3Hood(hoodNTriples, pdbId, output_dir)
 
 #Creates a ligand neighborhood
 def makeHoodNTriplesAnnotation(ligand_uri_dict, aPdbId, aRadius):
@@ -90,10 +91,8 @@ def makeHoodNTriplesAnnotation(ligand_uri_dict, aPdbId, aRadius):
 	radius_uri = base_uri+'/lighood_resource:'+hashlib.sha224(str(aRadius)+str(random.random())).hexdigest()
 	rm += "<"+hood_uri+"> <"+base_uri+"/lighood_vocabulary:has_attribute> <"+radius_uri+">. \n"
 	rm += "<"+radius_uri+"> <"+rdf+"type> <"+base_uri+"/lighood_vocabulary:radius> .\n"
-
 	rm += "<"+base_uri+"/lighood_vocabulary:radius> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2000/01/rdf-schema#Class>  .\n"
 	rm += "<"+radius_uri+"> <"+"<http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#NamedIndividual> .\n"
-
 	rm += "<"+radius_uri+"> <"+base_uri+"/lighood_vocabulary:has_value> \""+str(aRadius)+"\". \n"
 	for (ligand_uri, res_uri) in ligand_uri_dict.items():
 		#add ligand 
